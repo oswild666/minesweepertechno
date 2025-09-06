@@ -22,6 +22,8 @@ class AudioEngine {
 
         this.basslineTimer = null;
         this.chordModeTimer = null;
+        this.bassSoundUpgraded = false;
+        this.tonalPercussionEnabled = false;
     }
 
     init() {
@@ -103,6 +105,18 @@ class AudioEngine {
                 freq = 800;
                 decay = 0.1;
                 osc.type = 'sawtooth';
+                break;
+            case 'tribal-perc':
+                if (this.tonalPercussionEnabled) {
+                    // Play a random note from the scale as tonal percussion
+                    this.playMelody(Math.floor(Math.random() * 16), time);
+                    return; // Return because playMelody handles its own sound
+                } else {
+                    // Default non-tonal sound
+                    freq = 600;
+                    decay = 0.1;
+                    osc.type = 'triangle';
+                }
                 break;
             default:
                 return; // Don't play unknown sounds
@@ -217,27 +231,28 @@ class AudioEngine {
         osc.connect(filter);
         filter.connect(gain);
         gain.connect(this.audioContext.destination);
-
-        // LFO connection
         lfo.connect(lfoGain);
         lfoGain.connect(filter.frequency);
 
-
         // --- Sound Synthesis ---
-        osc.type = 'sawtooth';
+        if (this.bassSoundUpgraded) {
+            osc.type = 'square';
+            filter.type = 'lowpass';
+            // Variable filter between 200 and 400
+            const filterFreq = Math.random() * 200 + 200;
+            filter.frequency.setValueAtTime(filterFreq, time);
+            lfo.frequency.value = 0; // No wobble on the upgraded bass
+        } else {
+            osc.type = 'sawtooth';
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(300, time);
+            lfo.frequency.value = 4; // 4 Hz wobble
+        }
         osc.frequency.setValueAtTime(freq, time);
 
         // --- LFO Configuration ---
         lfo.type = 'sine';
-        lfo.frequency.value = 4; // 4 Hz wobble
-        lfoGain.gain.value = 50; // Modulate by +/- 50 Hz
-
-        // --- Filter Envelope ---
-        filter.type = 'lowpass';
-        // Base frequency is set, LFO will modulate around this
-        filter.frequency.setValueAtTime(300, time);
-        // The initial "pluck" from the envelope is now removed to favor LFO modulation.
-        // We can add it back if needed, but for now, let's hear the LFO.
+        lfoGain.gain.value = 50;
 
         // --- Volume Envelope ---
         gain.gain.setValueAtTime(0.4, time);
@@ -248,6 +263,16 @@ class AudioEngine {
         lfo.start(time);
         osc.stop(time + 0.2);
         lfo.stop(time + 0.2);
+    }
+
+    upgradeBassSound() {
+        this.bassSoundUpgraded = true;
+        console.log("Bass sound upgraded to SQUARE wave.");
+    }
+
+    enableTonalPercussion() {
+        this.tonalPercussionEnabled = true;
+        console.log("Tonal percussion enabled.");
     }
 
     startBasslineMode() {
@@ -358,6 +383,58 @@ class AudioEngine {
     stopChordMode() {
         this.markovChain.setMode('rhythm');
         this.regeneratePattern();
+    }
+
+    triggerSlowDownEffect() {
+        if (!this.isPlaying) return;
+        const originalBpm = this.bpm;
+        this.bpm /= 2;
+        console.log(`BPM slowed down to: ${this.bpm}`);
+
+        const duration = 8 * (60 / originalBpm); // 8 beats at original tempo
+        setTimeout(() => {
+            this.bpm = originalBpm;
+            console.log(`BPM restored to: ${this.bpm}`);
+        }, duration * 1000);
+    }
+
+    triggerTapeDelay() {
+        // Create a short sound to feed into the delay
+        const blip = this.audioContext.createOscillator();
+        const blipGain = this.audioContext.createGain();
+        blip.connect(blipGain);
+
+        // Create the delay line
+        const delay = this.audioContext.createDelay(2.0); // Max delay of 2s
+        const feedback = this.audioContext.createGain();
+        const masterGain = this.audioContext.createGain();
+
+        // Connect nodes for feedback loop
+        blipGain.connect(delay);
+        delay.connect(feedback);
+        feedback.connect(delay);
+
+        // Connect to output, with a master gain to fade it out
+        delay.connect(masterGain);
+        masterGain.connect(this.audioContext.destination);
+
+        // Configure the effect
+        const beatDuration = 60.0 / this.bpm;
+        delay.delayTime.value = beatDuration / 6;
+        feedback.gain.value = 0.85; // High feedback
+
+        // Configure the initial sound
+        blip.type = 'sine';
+        blip.frequency.value = 1200;
+        blipGain.gain.setValueAtTime(0.5, this.audioContext.currentTime);
+        blipGain.gain.exponentialRampToValueAtTime(0.001, this.audioContext.currentTime + 0.05);
+
+        // Fade out the entire delay effect over 4 seconds
+        masterGain.gain.setValueAtTime(0.7, this.audioContext.currentTime);
+        masterGain.gain.exponentialRampToValueAtTime(0.001, this.audioContext.currentTime + 4);
+
+        blip.start(this.audioContext.currentTime);
+        blip.stop(this.audioContext.currentTime + 0.05);
     }
 }
 

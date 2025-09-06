@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let board = [];
     let gameOver = false;
+    let correctlyFlaggedMines = new Set();
 
     function createBoard() {
         for (let row = 0; row < ROWS; row++) {
@@ -180,10 +181,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const row = parseInt(target.dataset.row, 10);
         const col = parseInt(target.dataset.col, 10);
+        const cellData = board[row][col];
 
-        if (board[row][col].isRevealed) return;
+        if (cellData.isRevealed) return;
 
-        board[row][col].isFlagged = !board[row][col].isFlagged;
+        // Toggle the flag
+        cellData.isFlagged = !cellData.isFlagged;
+
+        // --- Handle Audio Triggers for Flagging ---
+        if (cellData.isFlagged) { // Only trigger on placing a flag, not removing
+            if (cellData.isMine) {
+                // Correctly flagged a mine
+                const cellId = `${row}-${col}`;
+                if (!correctlyFlaggedMines.has(cellId)) {
+                    // This is the first time this correct mine has been flagged
+                    if (correctlyFlaggedMines.size === 0) {
+                        // This is the VERY FIRST correct mine in the game
+                        audioEngine.upgradeBassSound();
+                        audioEngine.enableTonalPercussion();
+                    }
+                    correctlyFlaggedMines.add(cellId);
+                    audioEngine.triggerTapeDelay();
+                }
+            } else {
+                // Incorrectly flagged a safe cell
+                audioEngine.triggerSlowDownEffect();
+            }
+        }
+        // -----------------------------------------
+
         renderBoard();
     }
 
@@ -206,6 +232,7 @@ document.addEventListener('DOMContentLoaded', () => {
             startStopBtn.textContent = 'Start';
         }
         gameOver = false;
+        correctlyFlaggedMines.clear();
         createBoard();
         renderBoard();
     }
