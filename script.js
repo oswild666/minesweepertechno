@@ -165,9 +165,24 @@ document.addEventListener('DOMContentLoaded', () => {
         renderBoard();
     }
 
+    const startStopBtn = document.getElementById('start-stop-btn');
+
+    startStopBtn.addEventListener('click', () => {
+        audioEngine.togglePlayback();
+        if (audioEngine.isPlaying) {
+            startStopBtn.textContent = 'Stop';
+        } else {
+            startStopBtn.textContent = 'Start';
+        }
+    });
+
+    // Load sounds and then create the board
+    audioEngine.loadAllSounds().then(() => {
+        console.log("All sounds loaded/registered.");
+        createBoard();
+        renderBoard();
+    });
+
     gameBoard.addEventListener('click', handleCellClick);
     gameBoard.addEventListener('contextmenu', handleContextMenu);
-
-    createBoard();
-    renderBoard();
 });
