@@ -1,8 +1,10 @@
 class MarkovChainGenerator {
     constructor() {
-        this.states = ['kick', 'snare', 'hihat', 'clap', 'tribal-perc', null];
-        this.transitionMatrix = {
-            // Probabilities of transitioning from state (row) to state (col)
+        this.mode = 'rhythm'; // 'rhythm' or 'bassline'
+
+        // --- Rhythm Mode Data ---
+        this.rhythmStates = ['kick', 'snare', 'hihat', 'clap', 'tribal-perc', null];
+        this.rhythmTransitionMatrix = {
             'kick':        { 'kick': 0.05, 'snare': 0.3, 'hihat': 0.4, 'clap': 0.0, 'tribal-perc': 0.05, null: 0.2 },
             'snare':       { 'kick': 0.4, 'snare': 0.0, 'hihat': 0.4, 'clap': 0.0, 'tribal-perc': 0.0, null: 0.2 },
             'hihat':       { 'kick': 0.1, 'snare': 0.3, 'hihat': 0.1, 'clap': 0.1, 'tribal-perc': 0.2, null: 0.2 },
@@ -10,36 +12,58 @@ class MarkovChainGenerator {
             'tribal-perc': { 'kick': 0.1, 'snare': 0.1, 'hihat': 0.4, 'clap': 0.1, 'tribal-perc': 0.1, null: 0.2 },
             null:          { 'kick': 0.5, 'snare': 0.1, 'hihat': 0.3, 'clap': 0.0, 'tribal-perc': 0.0, null: 0.1 },
         };
+
+        // --- Bassline Mode Data (F# Minor: F#2, C#3, B2, A2) ---
+        this.bassStates = [92.50, 138.59, 123.47, 110.00, null];
+        this.bassTransitionMatrix = {
+            92.50:  { 92.50: 0.1, 138.59: 0.4, 123.47: 0.2, 110.00: 0.1, null: 0.2 },
+            138.59: { 92.50: 0.2, 138.59: 0.1, 123.47: 0.4, 110.00: 0.2, null: 0.1 },
+            123.47: { 92.50: 0.3, 138.59: 0.2, 123.47: 0.1, 110.00: 0.3, null: 0.1 },
+            110.00: { 92.50: 0.5, 138.59: 0.1, 123.47: 0.2, 110.00: 0.1, null: 0.1 },
+            null:   { 92.50: 0.6, 138.59: 0.1, 123.47: 0.1, 110.00: 0.1, null: 0.1 },
+        };
+    }
+
+    setMode(mode) {
+        if (['rhythm', 'bassline'].includes(mode)) {
+            this.mode = mode;
+            console.log(`Markov chain mode set to: ${mode}`);
+        }
     }
 
     chooseNextState(currentState) {
-        const probabilities = this.transitionMatrix[currentState];
-        if (!probabilities) {
-            return null; // Should not happen if matrix is well-defined
-        }
+        const matrix = this.mode === 'bassline' ? this.bassTransitionMatrix : this.rhythmTransitionMatrix;
+        const probabilities = matrix[currentState];
+        if (!probabilities) return null;
 
         const rand = Math.random();
         let cumulativeProb = 0;
 
-        for (const state in probabilities) {
-            cumulativeProb += probabilities[state];
+        for (const stateStr in probabilities) {
+            cumulativeProb += probabilities[stateStr];
             if (rand < cumulativeProb) {
-                // The 'null' state in the matrix becomes a real null in the pattern
-                return state === 'null' ? null : state;
+                const state = stateStr === 'null' ? null : (this.mode === 'bassline' ? parseFloat(stateStr) : stateStr);
+                return state;
             }
         }
-        return null; // Fallback
+        return null;
     }
 
     generatePattern(length = 16) {
         const pattern = [];
-        // Always start with a kick on the first beat
-        let currentState = 'kick';
+        let currentState;
+
+        if (this.mode === 'bassline') {
+            // Start with the root note for basslines
+            currentState = this.bassStates[0];
+        } else {
+            // Always start with a kick for rhythm
+            currentState = 'kick';
+        }
         pattern.push(currentState);
 
         for (let i = 1; i < length; i++) {
-            // To ensure a steady beat, we can force a kick on certain steps
-            if (i % 4 === 0) {
+            if (this.mode === 'rhythm' && i % 4 === 0) {
                  currentState = 'kick';
             } else {
                  currentState = this.chooseNextState(currentState);
@@ -50,35 +74,29 @@ class MarkovChainGenerator {
     }
 
     updateMatrix(adjacentMines) {
-        console.log(`Updating matrix based on adjacent mines: ${adjacentMines}`);
+        // For now, matrix updates only affect the rhythm mode.
+        if (this.mode !== 'rhythm') return;
 
-        // Note: This is a simplified implementation. A robust version would
-        // ensure probabilities don't exceed 1.0 or go below 0.0 and would
-        // normalize the rows more carefully. This is for demonstration.
-
+        console.log(`Updating rhythm matrix based on adjacent mines: ${adjacentMines}`);
         const increase = 0.1; // A small, safe amount to increase by
 
         if (adjacentMines === 0) {
-            // More kick focus
-            this.adjustProbability('null', 'kick', increase);
+            this.adjustProbability(this.rhythmTransitionMatrix, 'null', 'kick', increase);
         } else if (adjacentMines >= 1 && adjacentMines <= 2) {
-            // UK funky syncopation
-            this.adjustProbability('kick', 'hihat', increase);
-            this.adjustProbability('snare', 'hihat', increase); // Snare -> clap is not in the matrix, using hihat
+            this.adjustProbability(this.rhythmTransitionMatrix, 'kick', 'hihat', increase);
+            this.adjustProbability(this.rhythmTransitionMatrix, 'snare', 'hihat', increase);
         } else if (adjacentMines >= 3 && adjacentMines <= 5) {
-            // Tribal layers
-            this.adjustProbability('hihat', 'tribal-perc', increase);
+            this.adjustProbability(this.rhythmTransitionMatrix, 'hihat', 'tribal-perc', increase);
         } else if (adjacentMines >= 6) {
-            // Chaos
-            this.adjustProbability('snare', 'tribal-perc', increase);
-            this.adjustProbability('kick', 'snare', increase);
+            this.adjustProbability(this.rhythmTransitionMatrix, 'snare', 'tribal-perc', increase);
+            this.adjustProbability(this.rhythmTransitionMatrix, 'kick', 'snare', increase);
         }
 
-        console.log("Updated Matrix:", this.transitionMatrix);
+        console.log("Updated Rhythm Matrix:", this.rhythmTransitionMatrix);
     }
 
-    adjustProbability(fromState, toState, change) {
-        const row = this.transitionMatrix[fromState];
+    adjustProbability(matrix, fromState, toState, change) {
+        const row = matrix[fromState];
         if (!row || row[toState] === undefined) return;
 
         // Don't let probability exceed a reasonable limit

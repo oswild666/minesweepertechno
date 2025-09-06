@@ -76,6 +76,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // ---------------------------------------------
 
         if (board[row][col].adjacentMines === 0) {
+            // If an empty cell is revealed, trigger the bassline mode
+            audioEngine.startBasslineMode();
             for (let i = -1; i <= 1; i++) {
                 for (let j = -1; j <= 1; j++) {
                     if (i === 0 && j === 0) continue;

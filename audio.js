@@ -19,6 +19,8 @@ class AudioEngine {
              92.50, 103.83, 110.00, 123.47, 138.59, 146.83, 164.81, // F#2 to E3
              185.00, 207.65, 220.00, 246.94, 277.18, 293.66, 329.63  // F#3 to E4
         ];
+
+        this.basslineTimer = null;
     }
 
     init() {
@@ -50,6 +52,12 @@ class AudioEngine {
     }
 
     play(soundName, time, options = {}) {
+        // If the soundName is a number, it's a bass note frequency
+        if (typeof soundName === 'number') {
+            this.playBassNote(soundName, time);
+            return;
+        }
+
         // If we have a real buffer, play it. Otherwise, play a synth tone.
         if (this.soundBuffers.get(soundName)) {
             const source = this.audioContext.createBufferSource();
@@ -59,13 +67,13 @@ class AudioEngine {
             return;
         }
 
-        // If we are playing a melody, options.y will be passed.
+        // If we are playing a one-shot melody, options.y will be passed.
         if (soundName === 'melody' && options.y !== undefined) {
             this.playMelody(options.y, time);
             return;
         }
 
-        // --- Fallback Oscillator Sound ---
+        // --- Fallback RHYTHM Oscillator Sound ---
         const osc = this.audioContext.createOscillator();
         const gain = this.audioContext.createGain();
         osc.connect(gain);
@@ -184,6 +192,48 @@ class AudioEngine {
     regeneratePattern() {
         this.pattern = this.markovChain.generatePattern(this.totalSteps);
         console.log("Pattern regenerated:", this.pattern);
+    }
+
+    playBassNote(freq, time) {
+        const osc = this.audioContext.createOscillator();
+        const filter = this.audioContext.createBiquadFilter();
+        const gain = this.audioContext.createGain();
+
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.audioContext.destination);
+
+        // Sound Synthesis
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(freq, time);
+
+        // Filter Envelope
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(500, time);
+        filter.frequency.linearRampToValueAtTime(300, time + 0.05);
+
+        // Volume Envelope
+        gain.gain.setValueAtTime(0.4, time);
+        gain.gain.exponentialRampToValueAtTime(0.01, time + 0.2);
+
+        osc.start(time);
+        osc.stop(time + 0.2);
+    }
+
+    startBasslineMode() {
+        clearTimeout(this.basslineTimer); // Clear any previous timer
+        this.markovChain.setMode('bassline');
+        this.regeneratePattern();
+
+        // Switch back to rhythm mode after 16 beats
+        const secondsPerBeat = 60.0 / this.bpm;
+        const duration = 16 * 0.25 * secondsPerBeat;
+        this.basslineTimer = setTimeout(() => this.stopBasslineMode(), duration * 1000);
+    }
+
+    stopBasslineMode() {
+        this.markovChain.setMode('rhythm');
+        this.regeneratePattern();
     }
 }
 
