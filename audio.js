@@ -195,29 +195,50 @@ class AudioEngine {
     }
 
     playBassNote(freq, time) {
+        // --- Main Synth Nodes ---
         const osc = this.audioContext.createOscillator();
         const filter = this.audioContext.createBiquadFilter();
         const gain = this.audioContext.createGain();
 
+        // --- LFO Nodes for Filter Modulation ---
+        const lfo = this.audioContext.createOscillator();
+        const lfoGain = this.audioContext.createGain();
+
+        // --- Connections ---
         osc.connect(filter);
         filter.connect(gain);
         gain.connect(this.audioContext.destination);
 
-        // Sound Synthesis
+        // LFO connection
+        lfo.connect(lfoGain);
+        lfoGain.connect(filter.frequency);
+
+
+        // --- Sound Synthesis ---
         osc.type = 'sawtooth';
         osc.frequency.setValueAtTime(freq, time);
 
-        // Filter Envelope
-        filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(500, time);
-        filter.frequency.linearRampToValueAtTime(300, time + 0.05);
+        // --- LFO Configuration ---
+        lfo.type = 'sine';
+        lfo.frequency.value = 4; // 4 Hz wobble
+        lfoGain.gain.value = 50; // Modulate by +/- 50 Hz
 
-        // Volume Envelope
+        // --- Filter Envelope ---
+        filter.type = 'lowpass';
+        // Base frequency is set, LFO will modulate around this
+        filter.frequency.setValueAtTime(300, time);
+        // The initial "pluck" from the envelope is now removed to favor LFO modulation.
+        // We can add it back if needed, but for now, let's hear the LFO.
+
+        // --- Volume Envelope ---
         gain.gain.setValueAtTime(0.4, time);
         gain.gain.exponentialRampToValueAtTime(0.01, time + 0.2);
 
+        // --- Start & Stop ---
         osc.start(time);
+        lfo.start(time);
         osc.stop(time + 0.2);
+        lfo.stop(time + 0.2);
     }
 
     startBasslineMode() {
@@ -234,6 +255,39 @@ class AudioEngine {
     stopBasslineMode() {
         this.markovChain.setMode('rhythm');
         this.regeneratePattern();
+    }
+
+    startEmergencyMode() {
+        this.stop(); // Stop the main sequencer
+
+        const osc = this.audioContext.createOscillator();
+        const distortion = this.audioContext.createWaveShaper();
+        const gain = this.audioContext.createGain();
+
+        // Create a distortion curve
+        const amount = 400;
+        const n_samples = 44100;
+        const curve = new Float32Array(n_samples);
+        const deg = Math.PI / 180;
+        for (let i = 0; i < n_samples; ++i) {
+            const x = i * 2 / n_samples - 1;
+            curve[i] = (3 + amount) * x * 20 * deg / (Math.PI + amount * Math.abs(x));
+        }
+        distortion.curve = curve;
+        distortion.oversample = '4x';
+
+        osc.connect(distortion);
+        distortion.connect(gain);
+        gain.connect(this.audioContext.destination);
+
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(60, this.audioContext.currentTime);
+
+        gain.gain.setValueAtTime(0.5, this.audioContext.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.audioContext.currentTime + 1.5);
+
+        osc.start(this.audioContext.currentTime);
+        osc.stop(this.audioContext.currentTime + 1.5);
     }
 }
 

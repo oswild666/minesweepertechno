@@ -89,13 +89,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function endGame() {
         gameOver = true;
+        audioEngine.startEmergencyMode(); // Trigger the game over sound
+
         board.forEach(row => row.forEach(cell => {
             if (cell.isMine) {
                 cell.isRevealed = true;
             }
         }));
         renderBoard();
-        setTimeout(() => alert("Game Over!"), 100);
+        // Delay the alert to let the sound play
+        setTimeout(() => alert("Game Over!"), 1600);
     }
 
     function handleCellClick(event) {
