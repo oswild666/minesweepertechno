@@ -22,17 +22,32 @@ class MarkovChainGenerator {
             110.00: { 92.50: 0.5, 138.59: 0.1, 123.47: 0.2, 110.00: 0.1, null: 0.1 },
             null:   { 92.50: 0.6, 138.59: 0.1, 123.47: 0.1, 110.00: 0.1, null: 0.1 },
         };
+
+        // --- Chord Mode Data ---
+        this.chordStates = CHORD_LIBRARY.getAvailableChordTypes();
+        this.chordTransitionMatrix = {
+            'maj7': { 'maj7': 0.1, 'dom7': 0.3, 'min7': 0.3, 'dim7': 0.1, 'aug': 0.1, 'dom9': 0.1 },
+            'dom7': { 'maj7': 0.4, 'dom7': 0.1, 'min7': 0.3, 'dim7': 0.0, 'aug': 0.1, 'dom9': 0.1 },
+            'min7': { 'maj7': 0.2, 'dom7': 0.3, 'min7': 0.1, 'dim7': 0.2, 'aug': 0.0, 'dom9': 0.2 },
+            'dom9': { 'maj7': 0.5, 'dom7': 0.1, 'min7': 0.3, 'dim7': 0.0, 'aug': 0.1, 'dom9': 0.0 },
+            'dim7': { 'maj7': 0.2, 'dom7': 0.2, 'min7': 0.4, 'dim7': 0.1, 'aug': 0.1, 'dom9': 0.0 },
+            'aug':  { 'maj7': 0.4, 'dom7': 0.4, 'min7': 0.1, 'dim7': 0.0, 'aug': 0.0, 'dom9': 0.1 },
+        };
     }
 
     setMode(mode) {
-        if (['rhythm', 'bassline'].includes(mode)) {
+        if (['rhythm', 'bassline', 'chords'].includes(mode)) {
             this.mode = mode;
             console.log(`Markov chain mode set to: ${mode}`);
         }
     }
 
     chooseNextState(currentState) {
-        const matrix = this.mode === 'bassline' ? this.bassTransitionMatrix : this.rhythmTransitionMatrix;
+        let matrix;
+        if (this.mode === 'bassline') matrix = this.bassTransitionMatrix;
+        else if (this.mode === 'chords') matrix = this.chordTransitionMatrix;
+        else matrix = this.rhythmTransitionMatrix;
+
         const probabilities = matrix[currentState];
         if (!probabilities) return null;
 
@@ -42,8 +57,9 @@ class MarkovChainGenerator {
         for (const stateStr in probabilities) {
             cumulativeProb += probabilities[stateStr];
             if (rand < cumulativeProb) {
-                const state = stateStr === 'null' ? null : (this.mode === 'bassline' ? parseFloat(stateStr) : stateStr);
-                return state;
+                if (stateStr === 'null') return null;
+                if (this.mode === 'bassline') return parseFloat(stateStr);
+                return stateStr;
             }
         }
         return null;
@@ -54,10 +70,10 @@ class MarkovChainGenerator {
         let currentState;
 
         if (this.mode === 'bassline') {
-            // Start with the root note for basslines
             currentState = this.bassStates[0];
+        } else if (this.mode === 'chords') {
+            currentState = 'maj7'; // Start with a stable chord
         } else {
-            // Always start with a kick for rhythm
             currentState = 'kick';
         }
         pattern.push(currentState);
@@ -66,7 +82,7 @@ class MarkovChainGenerator {
             if (this.mode === 'rhythm' && i % 4 === 0) {
                  currentState = 'kick';
             } else {
-                 currentState = this.chooseNextState(currentState);
+                 currentState = this.chooseNextState(currentState) || currentState; // Fallback to previous state
             }
             pattern.push(currentState);
         }

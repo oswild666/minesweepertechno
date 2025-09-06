@@ -73,11 +73,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         // Play a melodic note based on the cell's y-position
         audioEngine.play('melody', 0, { y: row });
+
+        // --- Trigger special modes based on cell properties ---
+        const num = board[row][col].adjacentMines;
+        if (num === 0) {
+            // If an empty cell is revealed, trigger the bassline mode
+            audioEngine.startBasslineMode();
+        } else if (num === 3 || num === 4) {
+            // If a cell with 3 or 4 mines is revealed, trigger chord mode
+            audioEngine.startChordMode();
+        }
         // ---------------------------------------------
 
         if (board[row][col].adjacentMines === 0) {
-            // If an empty cell is revealed, trigger the bassline mode
-            audioEngine.startBasslineMode();
             for (let i = -1; i <= 1; i++) {
                 for (let j = -1; j <= 1; j++) {
                     if (i === 0 && j === 0) continue;
@@ -181,6 +189,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const startStopBtn = document.getElementById('start-stop-btn');
     const restartBtn = document.getElementById('restart-btn');
+    const bpmInput = document.getElementById('bpm-input');
+
+    bpmInput.addEventListener('input', (e) => {
+        const newBpm = parseInt(e.target.value, 10);
+        if (newBpm >= 40 && newBpm <= 240) {
+            audioEngine.bpm = newBpm;
+            console.log(`BPM set to: ${audioEngine.bpm}`);
+        }
+    });
 
     function restartGame() {
         // Stop the sequencer if it's playing

@@ -21,6 +21,7 @@ class AudioEngine {
         ];
 
         this.basslineTimer = null;
+        this.chordModeTimer = null;
     }
 
     init() {
@@ -144,8 +145,16 @@ class AudioEngine {
 
     scheduleNote(step, time) {
         const soundToPlay = this.pattern[step];
-        if (soundToPlay) {
-            console.log(`Scheduling ${soundToPlay} at step ${step} for time ${time}`);
+        if (!soundToPlay) return;
+
+        console.log(`Scheduling ${soundToPlay} at step ${step} for time ${time}`);
+
+        if (this.markovChain.mode === 'chords') {
+            // It's a chord name string, like 'maj7'
+            const rootMidi = 53; // F#3 as root
+            this.playChord(soundToPlay, rootMidi, time);
+        } else {
+            // It's a rhythm sound name or a bass frequency
             this.play(soundToPlay, time);
         }
     }
@@ -288,6 +297,67 @@ class AudioEngine {
 
         osc.start(this.audioContext.currentTime);
         osc.stop(this.audioContext.currentTime + 1.5);
+    }
+
+    playFmNote(carrierFreq, time) {
+        const carrier = this.audioContext.createOscillator();
+        const modulator = this.audioContext.createOscillator();
+        const modulatorGain = this.audioContext.createGain();
+        const masterGain = this.audioContext.createGain();
+
+        // Connections
+        modulator.connect(modulatorGain);
+        modulatorGain.connect(carrier.frequency);
+        carrier.connect(masterGain);
+        masterGain.connect(this.audioContext.destination);
+
+        // --- FM Synthesis Parameters ---
+        const modRatio = 1.4; // Classic E. Piano sound
+        const modIndex = carrierFreq * 1.5;
+        const decay = 1.0;
+
+        // Modulator setup
+        modulator.frequency.value = carrierFreq * modRatio;
+        modulatorGain.gain.setValueAtTime(modIndex, time);
+        modulatorGain.gain.exponentialRampToValueAtTime(0.001, time + decay * 0.8);
+
+        // Carrier setup
+        carrier.frequency.value = carrierFreq;
+        carrier.type = 'sine';
+
+        // Master Volume Envelope
+        masterGain.gain.setValueAtTime(0.3, time); // Chords can be loud, lower the gain
+        masterGain.gain.exponentialRampToValueAtTime(0.001, time + decay);
+
+        // Start & Stop
+        modulator.start(time);
+        carrier.start(time);
+        modulator.stop(time + decay);
+        carrier.stop(time + decay);
+    }
+
+    playChord(chordName, rootMidi, time) {
+        const chordFrequencies = CHORD_LIBRARY.getChordFrequencies(rootMidi, chordName);
+        if (chordFrequencies) {
+            chordFrequencies.forEach(freq => {
+                this.playFmNote(freq, time);
+            });
+        }
+    }
+
+    startChordMode() {
+        clearTimeout(this.chordModeTimer);
+        this.markovChain.setMode('chords');
+        this.regeneratePattern();
+
+        const secondsPerBeat = 60.0 / this.bpm;
+        const duration = 16 * 0.25 * secondsPerBeat;
+        this.chordModeTimer = setTimeout(() => this.stopChordMode(), duration * 1000);
+    }
+
+    stopChordMode() {
+        this.markovChain.setMode('rhythm');
+        this.regeneratePattern();
     }
 }
 

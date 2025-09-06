@@ -29,6 +29,21 @@ h1 {
     color: #222;
 }
 
+.bpm-control {
+    display: inline-block;
+    margin-left: 15px;
+    color: #DAA520;
+}
+
+.bpm-control input {
+    width: 60px;
+    background-color: #333;
+    border: 1px solid #DAA520;
+    color: #ccc;
+    padding: 5px;
+    font-family: Georgia, serif;
+}
+
 #game-board {
     display: grid;
     grid-template-columns: repeat(16, 30px);
