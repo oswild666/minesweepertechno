@@ -166,6 +166,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const startStopBtn = document.getElementById('start-stop-btn');
+    const restartBtn = document.getElementById('restart-btn');
+
+    function restartGame() {
+        // Stop the sequencer if it's playing
+        if (audioEngine.isPlaying) {
+            audioEngine.stop();
+            startStopBtn.textContent = 'Start';
+        }
+        gameOver = false;
+        createBoard();
+        renderBoard();
+    }
 
     startStopBtn.addEventListener('click', () => {
         audioEngine.togglePlayback();
@@ -175,6 +187,8 @@ document.addEventListener('DOMContentLoaded', () => {
             startStopBtn.textContent = 'Start';
         }
     });
+
+    restartBtn.addEventListener('click', restartGame);
 
     // Load sounds and then create the board
     audioEngine.loadAllSounds().then(() => {

@@ -43,14 +43,55 @@ class AudioEngine {
     }
 
     play(soundName, time) {
-        if (!this.soundBuffers.has(soundName) || this.soundBuffers.get(soundName) === null) {
-            // console.log(`Sound not loaded or placeholder: ${soundName}`);
-            return; // Don't try to play null buffers
+        // If we have a real buffer, play it. Otherwise, play a synth tone.
+        if (this.soundBuffers.get(soundName)) {
+            const source = this.audioContext.createBufferSource();
+            source.buffer = this.soundBuffers.get(soundName);
+            source.connect(this.audioContext.destination);
+            source.start(time);
+            return;
         }
-        const source = this.audioContext.createBufferSource();
-        source.buffer = this.soundBuffers.get(soundName);
-        source.connect(this.audioContext.destination);
-        source.start(time);
+
+        // --- Fallback Oscillator Sound ---
+        const osc = this.audioContext.createOscillator();
+        const gain = this.audioContext.createGain();
+        osc.connect(gain);
+        gain.connect(this.audioContext.destination);
+
+        let freq = 440;
+        let decay = 0.1;
+
+        switch (soundName) {
+            case 'kick':
+                freq = 100;
+                decay = 0.2;
+                osc.type = 'sine';
+                break;
+            case 'snare':
+                freq = 250;
+                decay = 0.15;
+                osc.type = 'triangle';
+                break;
+            case 'hihat':
+                freq = 2000;
+                decay = 0.05;
+                osc.type = 'square';
+                break;
+            case 'clap':
+                freq = 800;
+                decay = 0.1;
+                osc.type = 'sawtooth';
+                break;
+            default:
+                return; // Don't play unknown sounds
+        }
+
+        osc.frequency.setValueAtTime(freq, time);
+        gain.gain.setValueAtTime(0.5, time); // Start with some volume
+        gain.gain.exponentialRampToValueAtTime(0.001, time + decay); // Decay
+
+        osc.start(time);
+        osc.stop(time + decay + 0.1);
     }
 
     nextNote() {
