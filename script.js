@@ -66,6 +66,15 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        // --- Update Markov Chain based on game event ---
+        audioEngine.markovChain.updateMatrix(board[row][col].adjacentMines);
+        if (audioEngine.isPlaying) {
+            audioEngine.regeneratePattern();
+        }
+        // Play a melodic note based on the cell's y-position
+        audioEngine.play('melody', 0, { y: row });
+        // ---------------------------------------------
+
         if (board[row][col].adjacentMines === 0) {
             for (let i = -1; i <= 1; i++) {
                 for (let j = -1; j <= 1; j++) {

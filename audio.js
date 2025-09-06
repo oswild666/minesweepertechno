@@ -10,8 +10,15 @@ class AudioEngine {
         this.lookahead = 25.0; // ms
         this.timerID = null;
         this.totalSteps = 16;
+        this.pattern = []; // This will be generated dynamically
 
-        this.pattern = ['kick', null, 'hihat', null, 'snare', null, 'hihat', null, 'kick', null, 'hihat', null, 'snare', 'clap', 'hihat', null];
+        this.markovChain = new MarkovChainGenerator();
+
+        // F# Minor Scale (2 octaves)
+        this.fSharpMinorScale = [
+             92.50, 103.83, 110.00, 123.47, 138.59, 146.83, 164.81, // F#2 to E3
+             185.00, 207.65, 220.00, 246.94, 277.18, 293.66, 329.63  // F#3 to E4
+        ];
     }
 
     init() {
@@ -42,13 +49,19 @@ class AudioEngine {
         await this.loadSound('sounds/tribal-perc.wav', 'tribal-perc');
     }
 
-    play(soundName, time) {
+    play(soundName, time, options = {}) {
         // If we have a real buffer, play it. Otherwise, play a synth tone.
         if (this.soundBuffers.get(soundName)) {
             const source = this.audioContext.createBufferSource();
             source.buffer = this.soundBuffers.get(soundName);
             source.connect(this.audioContext.destination);
             source.start(time);
+            return;
+        }
+
+        // If we are playing a melody, options.y will be passed.
+        if (soundName === 'melody' && options.y !== undefined) {
+            this.playMelody(options.y, time);
             return;
         }
 
@@ -94,6 +107,27 @@ class AudioEngine {
         osc.stop(time + decay + 0.1);
     }
 
+    playMelody(y, time) {
+        const osc = this.audioContext.createOscillator();
+        const gain = this.audioContext.createGain();
+        osc.connect(gain);
+        gain.connect(this.audioContext.destination);
+
+        // Map y-coordinate to a note in the F# minor scale
+        const noteIndex = y % this.fSharpMinorScale.length;
+        const freq = this.fSharpMinorScale[noteIndex];
+        const decay = 0.5; // Longer decay for melody
+
+        osc.type = 'sawtooth'; // A classic synth sound
+        osc.frequency.setValueAtTime(freq, time);
+
+        gain.gain.setValueAtTime(0.3, time); // Start with some volume
+        gain.gain.exponentialRampToValueAtTime(0.001, time + decay);
+
+        osc.start(time);
+        osc.stop(time + decay + 0.1);
+    }
+
     nextNote() {
         const secondsPerBeat = 60.0 / this.bpm;
         this.nextNoteTime += 0.25 * secondsPerBeat; // Advance by a 16th note
@@ -125,6 +159,11 @@ class AudioEngine {
         this.isPlaying = true;
         this.currentStep = 0;
         this.nextNoteTime = this.audioContext.currentTime;
+
+        // Generate a new pattern each time we start
+        this.pattern = this.markovChain.generatePattern(this.totalSteps);
+        console.log("Generated Pattern:", this.pattern);
+
         this.scheduler(); // run immediately first time
         this.timerID = setInterval(() => this.scheduler(), this.lookahead);
     }
@@ -140,6 +179,11 @@ class AudioEngine {
         } else {
             this.start();
         }
+    }
+
+    regeneratePattern() {
+        this.pattern = this.markovChain.generatePattern(this.totalSteps);
+        console.log("Pattern regenerated:", this.pattern);
     }
 }
 
